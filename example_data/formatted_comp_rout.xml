@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<StatusChangeXML01 FulfilmentID="4000" ClientNum="4008" Version="4.0" BatchNum="1498798" CreationDate="2020-02-25T11:23:10">
+   <Order ThirdPartyCustCode="CUST-ZD08111619" ThirdPartyOrderCode="GJ20022501" NumOfLines="3" NumOfItems="3" SaleOUCode="400799" OrderPaymentStatus="0">
+      <AltOrderCodes>
+         <AltOrderCode AltOrderCodeTypeNum="1" AltOrderCode="DW00000057" />
+         <AltOrderCode AltOrderCodeTypeNum="2" AltOrderCode="GJ20022501" />
+         <AltOrderCode AltOrderCodeTypeNum="8" AltOrderCode="" />
+      </AltOrderCodes>
+      <OrderLine ThirdPartyOrderLineNum="1" ThirdPartyOrderLineQty="1" Manufacturer="Dwell DC">
+         <AltProdCodes>
+            <AltProdCode AltProdCodeTypeNum="1" AltProdCode="0000000001" />
+            <AltProdCode AltProdCodeTypeNum="3" AltProdCode="40080001" />
+         </AltProdCodes>
+         <OrderLineItem OrderLineSeqNum="1" StatusCode="COMP-ROUT" StatusDesc="Routes Finalised" LocationCode="900001" Warehouse="n/a" VisitDate="2020-03-02T00:00:00" DelOuCode="100008" RouteNum="1" DropNum="1" DropTime="2020-03-02T07:00:00" StatusDate="2020-02-25T11:22:30" StatusChanged="1" DeliveryWindowText="07:00 - 09:00" VisitNum="3311622" ActionType="0" RouteDetailsNum="859366" ThirdPartyRouteCode="1" CarrierRef="" ConsignmentRef="" PackageNum="" PackageTotal="" SuppChainLocationCode="900001" />
+      </OrderLine>
+      <OrderLine ThirdPartyOrderLineNum="2" ThirdPartyOrderLineQty="1" Manufacturer="Dwell DC">
+         <AltProdCodes>
+            <AltProdCode AltProdCodeTypeNum="1" AltProdCode="0000000001" />
+            <AltProdCode AltProdCodeTypeNum="3" AltProdCode="40080001" />
+         </AltProdCodes>
+         <OrderLineItem OrderLineSeqNum="1" StatusCode="COMP-ROUT" StatusDesc="Routes Finalised" LocationCode="CUST" Warehouse="n/a" VisitDate="2020-03-02T00:00:00" DelOuCode="100008" RouteNum="1" DropNum="1" DropTime="2020-03-02T07:00:00" StatusDate="2020-02-25T11:22:30" StatusChanged="1" DeliveryWindowText="07:00 - 09:00" VisitNum="3311622" ActionType="1" RouteDetailsNum="859366" ThirdPartyRouteCode="1" CarrierRef="" ConsignmentRef="" PackageNum="" PackageTotal="" SuppChainLocationCode="CUST" />
+      </OrderLine>
+      <OrderLine ThirdPartyOrderLineNum="3" ThirdPartyOrderLineQty="1" Manufacturer="Dwell DC">
+         <AltProdCodes>
+            <AltProdCode AltProdCodeTypeNum="1" AltProdCode="0000000001" />
+            <AltProdCode AltProdCodeTypeNum="3" AltProdCode="40080001" />
+         </AltProdCodes>
+         <OrderLineItem OrderLineSeqNum="1" StatusCode="COMP-ROUT" StatusDesc="Routes Finalised" LocationCode="900001" Warehouse="n/a" VisitDate="2020-03-02T00:00:00" DelOuCode="100008" RouteNum="1" DropNum="1" DropTime="2020-03-02T07:00:00" StatusDate="2020-02-25T11:22:30" StatusChanged="1" DeliveryWindowText="07:00 - 09:00" VisitNum="3311622" ActionType="0" RouteDetailsNum="859366" ThirdPartyRouteCode="1" CarrierRef="" ConsignmentRef="" PackageNum="" PackageTotal="" SuppChainLocationCode="900001" />
+      </OrderLine>
+   </Order>
+</StatusChangeXML01>
