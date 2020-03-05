@@ -127,13 +127,37 @@ def log_xml_to_db( connection, fileName, root):
 # be matched to an existing funxtion
 def invalid_process():
     raise Exception('Invalid file name')
-    
+   
+#
+# Cerate a switch staement
+#
 def switch(case):
     return {
-        "COMP-ORDR":process_comp_order,
         "COMP-DATE":process_comp_date,
-    }.get(case, invalid_process)    
-    
+        "COMP-LOAD":process_comp_load,
+        "COMP-ORDR":process_comp_order,
+        "COMP-PICK":process_comp_pick,
+        "COMP-ROUT":process_comp_route,
+        "COMP-STKR":process_comp_stkr,
+    }.get(case, invalid_process)
+
+#
+# Process the XML from a COMP_DATE file (completion date)
+# Status update to the order file
+#
+def process_comp_date( connect, filename, root):
+    log_xml_to_db( connection, fileName, root )
+
+    return True
+
+#
+# Process the XML from a COMP_LOAD file (XXXXXXXXXXXX)
+#
+def process_comp_load( connect, filename, root):
+    log_xml_to_db( connection, fileName, root )
+
+    return True    
+
 #
 # Process the XML from a COMP-ORDR file (complete order)
 # This file type is to inform dwell that wincanton have
@@ -145,10 +169,29 @@ def process_comp_order( connection, fileName, root ):
     return True
     
 #
-# Process the XML from a COMP_DATE file (completion date)
-# Status update to the order file
+# Process the XML from a COMP_PICK file (XXXXXXXXXXXX)
 #
-def process_comp_date( connect, filename, root):
+def process_comp_pick( connect, filename, root):
+    log_xml_to_db( connection, fileName, root )
+
+    return True   
+    
+#
+# Process the XML from a COMP_ROUT file (XXXXXXXXXXXX)
+#
+def process_comp_route( connect, filename, root):
     log_xml_to_db( connection, fileName, root )
 
     return True
+    
+#
+# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
+#
+def process_comp_stkr( connect, filename, root):
+    log_xml_to_db( connection, fileName, root )
+
+    return True    
+
+
+
+
