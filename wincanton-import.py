@@ -64,7 +64,7 @@ def log_xml_to_db( connection, fileName, root):
     
     if root.attrib['Version'] != "4.0":
         raise Exception("Invalid version number [" + str(root.attrib['Version']) + ']')
-        
+    orders = []
     for Order in root:
         #print(Order.tag, Order.attrib)
         ThirdPartyCustCode = Order.attrib['ThirdPartyCustCode']
@@ -120,8 +120,10 @@ def log_xml_to_db( connection, fileName, root):
                         cursor.execute(sql)
                         connection.commit() 
                         result = cursor.fetchone()
+                        orders= [ThirdPartyOrderCode ,VisitDate]
                 except Exception as e:
                     print('cannot write xml to DB [' +str(e) +']')
+                return orders
 #
 # Catch all for process switcher, incase the process name cannot
 # be matched to an existing funxtion
@@ -167,8 +169,8 @@ def process_comp_load( connect, filename, root):
 # received the order 
 #
 def process_comp_order( connection, fileName, root ):
-    log_xml_to_db( connection, fileName, root )
-
+    orders = log_xml_to_db( connection, fileName, root )
+    update_sohead(connection,orders)
     return True
     
 #
@@ -218,6 +220,9 @@ def process_comp_rtrn( connect, filename, root):
     log_xml_to_db( connection, fileName, root )
 
     return True    
+    
+def update_sohead(connection,orders):
+    print(orders)
 
 
 
