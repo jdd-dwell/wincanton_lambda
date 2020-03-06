@@ -139,6 +139,9 @@ def switch(case):
         "COMP-PICK":process_comp_pick,
         "COMP-ROUT":process_comp_route,
         "COMP-STKR":process_comp_stkr,
+        "FAIL-NOND":process_comp_fail,
+        "COMP-SCUFF":process_comp_scuff,
+        "COMP-RTRN":process_comp_rtrn,
     }.get(case, invalid_process)
 
 #
@@ -191,6 +194,32 @@ def process_comp_stkr( connect, filename, root):
     log_xml_to_db( connection, fileName, root )
 
     return True    
+    
+#
+# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
+#
+def process_comp_fail( connect, filename, root):
+    log_xml_to_db( connection, fileName, root )
+
+    return True    
+
+#
+# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
+#
+def process_comp_scuff( connect, filename, root):
+    log_xml_to_db( connection, fileName, root )
+
+    return True    
+
+#
+# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
+#
+def process_comp_rtrn( connect, filename, root):
+    log_xml_to_db( connection, fileName, root )
+
+    return True    
+
+
 
 
 

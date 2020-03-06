@@ -1,0 +1,38 @@
+{
+  "Records": [
+    {
+      "eventVersion": "2.1",
+      "eventSource": "aws:s3",
+      "awsRegion": "eu-west-2",
+      "eventTime": "2020-03-04T14:02:49.126Z",
+      "eventName": "ObjectCreated:Put",
+      "userIdentity": {
+        "principalId": "AWS:AIDAVRNEYMXOSXCTIC6X5"
+      },
+      "requestParameters": {
+        "sourceIPAddress": "85.115.54.201"
+      },
+      "responseElements": {
+        "x-amz-request-id": "FC28A5D14E06F381",
+        "x-amz-id-2": "yNvCUtKKoJBT1LdS3En51A5RD59z60kwHlSYQvSdtkjSk6E06mwUPbh+d+WTT2FkOrkJQxRwSR1qQlQsY4UJFG4im+YgMx8w"
+      },
+      "s3": {
+        "s3SchemaVersion": "1.0",
+        "configurationId": "78fa35d4-7b86-4ee1-8ef8-93131846c0a0",
+        "bucket": {
+          "name": "sftp-dev.dwell.co.uk",
+          "ownerIdentity": {
+            "principalId": "AGT2V47OQF7AB"
+          },
+          "arn": "arn:aws:s3:::sftp-dev.dwell.co.uk"
+        },
+        "object": {
+          "key": "wincanton/wincanton_dev/TEST_4008_20200225_00000005_COMP-ORDR.xml",
+          "size": 2736,
+          "eTag": "dac7c48460191b7e7b96bef94115eb6a",
+          "sequencer": "005E5FB50C3CFA4BBE"
+        }
+      }
+    }
+  ]
+}
