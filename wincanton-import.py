@@ -1,16 +1,39 @@
+#
+# Wincanton import lambda 
+#
+# Author: aw
+# Dated: march 2020
+#
+
 import pymysql.cursors
 import boto3
 import xml.etree.ElementTree as ET
 import os
+import json
 
+from urllib import request, parse
+
+secrets_manager = boto3.client('secretsmanager')
+#rds_credentials = json.loads(
+#    secrets_manager.get_secret_value(SecretId='rds-credentials')['SecretString']
+#)
+#dbuser = rds_credentials['username']
+#dbpassword = rds_credentials['password']
 
 dbuser = os.environ['dbuser']
 dbname = os.environ['dbname']
 dbpassword = os.environ['dbpassword']
 hostname = os.environ['hostname']
-             
+
+SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+SLACK_CHANNEL = 'wincanton_report_exceptions'
+SLACK_USER = 'HAL'
+
+
 # Connect to the database
 def handle (event, context ):
+
+    #slack_message('*Greetings*')
     
     source_bucket = event['Records'][0]['s3']['bucket']['name']
     file = event['Records'][0]['s3']['object']['key']
@@ -44,7 +67,7 @@ def handle (event, context ):
         root = ET.fromstring(object_content)
 
         try:
-            switch(functionName)(connection, str(file), root)
+            log_xml_to_db( connection, file, root, functionName )
             
             if not src.find('-TEST.xml'):
                 s3.Object(source_bucket, file + '. processed').copy_from(CopySource=src)
@@ -58,15 +81,14 @@ def handle (event, context ):
         connection.close()
 
 #
+# Write 
 #
-#
-def log_xml_to_db( connection, fileName, root):
+def log_xml_to_db( connection, fileName, root, functionName):
     
     if root.attrib['Version'] != "4.0":
         raise Exception("Invalid version number [" + str(root.attrib['Version']) + ']')
-    orders = []
+    
     for Order in root:
-        #print(Order.tag, Order.attrib)
         ThirdPartyCustCode = Order.attrib['ThirdPartyCustCode']
         ThirdPartyOrderCode = Order.attrib['ThirdPartyOrderCode']
         NumOfLines = Order.attrib['NumOfLines']
@@ -101,6 +123,7 @@ def log_xml_to_db( connection, fileName, root):
                 PackageNum = OrderLineItem.attrib['PackageNum']
                 PackageTotal = OrderLineItem.attrib['PackageTotal']
                 SuppChainLocationCode = OrderLineItem.attrib['SuppChainLocationCode']
+                
                 try:
                     with connection.cursor() as cursor:
                         sql = "INSERT INTO `wincanton_report_xml` \
@@ -120,112 +143,130 @@ def log_xml_to_db( connection, fileName, root):
                         cursor.execute(sql)
                         connection.commit() 
                         result = cursor.fetchone()
-                        orders= [ThirdPartyOrderCode ,VisitDate]
+                    #
+                    # update tables based on input file
+                    #
+                    print(functionName)
+                    if functionName == 'COMP-ORDR':
+                        with connection.cursor() as cursor:
+                               sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
+                                        % \
+                                        (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                               cursor.execute(sql)
+                               connection.commit() 
+                               cursor.close()
+                               result = cursor.fetchone()
+                               print(result)
+                    elif functionName == 'COMP-DATE':
+                        with connection.cursor() as cursor:
+                            sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id =%s" \
+                                        %  \
+                                        (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                            cursor.execute(sql)
+                            connection.commit() 
+                            cursor.close()
+                            print('DATE: ' + sql)
+                    elif functionName == 'COMP-PICK':
+                           with connection.cursor() as cursor:
+                                sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
+                                           % \
+                                            (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                                cursor.execute(sql)
+                                connection.commit() 
+                                cursor.close()
+                                result = cursor.fetchone()
+                                print(result)
+                    elif functionName == 'COMP-ROUT':
+                        with connection.cursor() as cursor:
+                            sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
+                                       % \
+                                        (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                            cursor.execute(sql)
+                            
+                            times = DeliveryWindowText.split(' - ')
+                            startTime = times[0]
+                            endTime   = times[1]
+                            
+                            sql = "SELECT id FROM delslot WHERE sord = '%s' AND deldate = '%s'" % (ThirdPartyOrderCode, VisitDate)
+                            cursor.execute(sql)
+                            connection.commit() 
+                            
+                            if cursor.rowcount == 1 :
+                                row = cursor.fetchone()
+                                delslotID = row[0]
+                                sql = "UPDATE delslot SET deldate='%s', route='%s', tripday=1, starthour='%s', endhour='%s' WHERE id ='%s'" \
+                                        %  \
+                                        (VisitDate, RouteNum, startTime, endTime, delslotID)
+                            else:
+                                tripday = 1
+                                sql = "INSERT delslot (sord, deldate, route, tripday, starthour, endhour, comm) VALUES('%s', '%s', '%s', '%s', '%s', '%s', '%s')" \
+                                            % \
+                                            (ThirdPartyOrderCode, VisitDate, RouteNum, tripday, startTime, endTime, 'added from xml import')
+
+                            cursor.execute(sql)
+                            connection.commit() 
+                            cursor.close()
+                               
+                    elif functionName == 'COMP-STKR':
+                           with connection.cursor() as cursor:
+                                sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
+                                           % \
+                                            (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                                cursor.execute(sql)
+                                connection.commit() 
+                                cursor.close()
+                                result = cursor.fetchone()
+                                print(result)
+
+                    elif functionName == 'COMP-LOAD':
+                           with connection.cursor() as cursor:
+                                sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
+                                           % \
+                                            (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                                cursor.execute(sql)
+                                connection.commit() 
+                                cursor.close()
+                                result = cursor.fetchone()
+                                print(result)
+                                
+                    elif functionName == 'COMP-COLS':
+                           with connection.cursor() as cursor:
+                                sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
+                                           % \
+                                            (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                                cursor.execute(sql)
+                                connection.commit() 
+                                cursor.close()
+                                result = cursor.fetchone()
+                                print(result)                                
+                    elif functionName == 'COMP-DELS':
+                           with connection.cursor() as cursor:
+                                sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
+                                           % \
+                                            (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                                cursor.execute(sql)
+                                connection.commit() 
+                                cursor.close()
+                                result = cursor.fetchone()
+                                print(result)   
+                                
                 except Exception as e:
                     print('cannot write xml to DB [' +str(e) +']')
-                return orders
-#
-# Catch all for process switcher, incase the process name cannot
-# be matched to an existing funxtion
-def invalid_process():
-    raise Exception('Invalid file name')
-   
-#
-# Cerate a switch staement
-#
-def switch(case):
-    return {
-        "COMP-DATE":process_comp_date,
-        "COMP-LOAD":process_comp_load,
-        "COMP-ORDR":process_comp_order,
-        "COMP-PICK":process_comp_pick,
-        "COMP-ROUT":process_comp_route,
-        "COMP-STKR":process_comp_stkr,
-        "FAIL-NOND":process_comp_fail,
-        "COMP-SCUFF":process_comp_scuff,
-        "COMP-RTRN":process_comp_rtrn,
-    }.get(case, invalid_process)
+                    
+def slack_message( message ):
+    try:
+        post = {'text': "{0}".format(message),
+                'channel': SLACK_CHANNEL,
+                'username': SLACK_USER,
+                'icon_emoji': ':robot_face:'
+        }
 
-#
-# Process the XML from a COMP_DATE file (completion date)
-# Status update to the order file
-#
-def process_comp_date( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
+        req = request.post(SLACK_WEBHOOK_URL,
+                            data=json.dumps(post),
+                            headers={'Content-Type': 'application/json'}
+                            ) 
 
-    return True
-
-#
-# Process the XML from a COMP_LOAD file (XXXXXXXXXXXX)
-#
-def process_comp_load( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
-
-    return True    
-
-#
-# Process the XML from a COMP-ORDR file (complete order)
-# This file type is to inform dwell that wincanton have
-# received the order 
-#
-def process_comp_order( connection, fileName, root ):
-    orders = log_xml_to_db( connection, fileName, root )
-    update_sohead(connection,orders)
-    return True
-    
-#
-# Process the XML from a COMP_PICK file (XXXXXXXXXXXX)
-#
-def process_comp_pick( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
-
-    return True   
-    
-#
-# Process the XML from a COMP_ROUT file (XXXXXXXXXXXX)
-#
-def process_comp_route( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
-
-    return True
-    
-#
-# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
-#
-def process_comp_stkr( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
-
-    return True    
-    
-#
-# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
-#
-def process_comp_fail( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
-
-    return True    
-
-#
-# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
-#
-def process_comp_scuff( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
-
-    return True    
-
-#
-# Process the XML from a COMP_STKR file (XXXXXXXXXXXX)
-#
-def process_comp_rtrn( connect, filename, root):
-    log_xml_to_db( connection, fileName, root )
-
-    return True    
-    
-def update_sohead(connection,orders):
-    print(orders)
-
-
-
-
-
-
+        print('Response: ' + str(req.text))
+        print('Response code: ' + str(req.status_code))
+    except Exception as e:
+        print('Exception: ' + str(e))
