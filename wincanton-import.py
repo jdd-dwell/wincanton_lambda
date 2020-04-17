@@ -10,38 +10,36 @@ import boto3
 import xml.etree.ElementTree as ET
 import os
 import json
+import time
 from botocore.exceptions import ClientError
 
 from urllib import request, parse
-
-#secrets_manager = boto3.client('secretsmanager')
-#rds_credentials = json.loads(
-#    secrets_manager.get_secret_value(SecretId='rds-credentials')['SecretString']
-#)
-#dbuser = rds_credentials['username']
-#dbpassword = rds_credentials['password']
 
 dbuser = os.environ['dbuser']
 dbname = os.environ['dbname']
 dbpassword = os.environ['dbpassword']
 hostname = os.environ['hostname']
 
-SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/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'
-SLACK_CHANNEL = 'wincanton_report_exceptions'
-SLACK_USER = 'HAL'
-
 ########################################################################
 # Main fucntion handler
 ########################################################################
 def handle (event, context ):
-
+    
     source_bucket = event['Records'][0]['s3']['bucket']['name']
     file = event['Records'][0]['s3']['object']['key']
-
+    fileName, fileExt = os.path.splitext(file)
+    if fileExt != '.xml':
+            return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json"
+        },
+        "body": ""
+        }
+        
     src = str(source_bucket) + '/' + str(file)
-    processedFile =  os.path.dirname(file) + '/processed/'+ os.path.basename(file)
-    #src = source_bucket + "/" + file
-
+    processedFile =  file + '.processed'
+    print('Processing file : ' + file)
     s3 = boto3.resource('s3')
     s3c = boto3.client('s3')
 
@@ -61,6 +59,7 @@ def handle (event, context ):
                              db = dbname,
                              password = dbpassword
                              )
+                        
     try:
         with connection.cursor() as cursor:
             # Create a new record
@@ -85,7 +84,7 @@ def handle (event, context ):
 
             try:
                 log_xml_to_db( connection, file, root )
-
+                print('Processed file : '+ src + ' to ' + processedFile)
                 s3.Object(source_bucket, processedFile).copy_from(CopySource=src)
                 s3.Object(source_bucket, file).delete()
 
@@ -294,3 +293,4 @@ def get_secret(secret_name):
             secret = base64.b64decode(get_secret_value_response['SecretBinary'])
 
     return json.loads(secret)
+    
