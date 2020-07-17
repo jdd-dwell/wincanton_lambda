@@ -9,24 +9,89 @@ import pymysql.cursors
 import boto3
 import xml.etree.ElementTree as ET
 import os
+import sys
 import json
-import time
+from base64 import b64decode
 from botocore.exceptions import ClientError
 
 from urllib import request, parse
 
-dbuser = os.environ['dbuser']
-dbname = os.environ['dbname']
-dbpassword = os.environ['dbpassword']
-hostname = os.environ['hostname']
+###############################################################################
+
+def get_secret(secret_name):
+
+    region_name = "eu-west-2"
+
+    # Create a Secrets Manager client
+    session = boto3.session.Session()
+
+    client = session.client( service_name='secretsmanager', region_name=region_name, )
+
+    try:
+        print('GET SECRET 2a ' + secret_name)
+        get_secret_value_response = client.get_secret_value( SecretId=secret_name )
+        print('GET SECRET 2b')
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'DecryptionFailureException':
+            print('GET SECRET 3')
+            # Secrets Manager can't decrypt the protected secret text using the provided KMS key.
+            # Deal with the exception here, and/or rethrow at your discretion.
+            raise e
+        elif e.response['Error']['Code'] == 'InternalServiceErrorException':
+            print('GET SECRET 4')            
+            # An error occurred on the server side.
+            # Deal with the exception here, and/or rethrow at your discretion.
+            raise e
+        elif e.response['Error']['Code'] == 'InvalidParameterException':
+            print('GET SECRET 5')            
+            # You provided an invalid value for a parameter.
+            # Deal with the exception here, and/or rethrow at your discretion.
+            raise e
+        elif e.response['Error']['Code'] == 'InvalidRequestException':
+            print('GET SECRET 6')
+            # You provided a parameter value that is not valid for the current state of the resource.
+            # Deal with the exception here, and/or rethrow at your discretion.
+            raise e
+        elif e.response['Error']['Code'] == 'ResourceNotFoundException':
+            print('GET SECRET 7')
+            # We can't find the resource that you asked for.
+            # Deal with the exception here, and/or rethrow at your discretion.
+            raise e
+    else:
+        print('GET SECRET 8')
+        # Decrypts secret using the associated KMS CMK.
+        # Depending on whether the secret is a string or binary, one of these fields will be populated.
+        if 'SecretString' in get_secret_value_response:
+            print('GET SECRET 9')
+            secret = get_secret_value_response['SecretString']
+        else:
+            print('GET SECRET 10')
+            secret = base64.b64decode(get_secret_value_response['SecretBinary'])
+    print(secret)
+    return json.loads(secret)
 
 ########################################################################
 # Main fucntion handler
 ########################################################################
 def handle (event, context ):
-    
+    print('STARTING')
+    #sm = get_secret('dwell-wincanton-import-dev')
+    #print(sm)
+
+    dbuser = os.environ['dbuser'] 
+    dbname = os.environ['dbname']
+
     source_bucket = event['Records'][0]['s3']['bucket']['name']
     file = event['Records'][0]['s3']['object']['key']
+    
+    if 'wincanton_live/' in file:
+        dbpassword = os.environ['dbpasswordlive']
+        hostname = os.environ['dbhostnamelive']
+    else:
+        dbpassword = os.environ['dbpassword']
+        hostname = os.environ['hostname']
+    
+    print(hostname)
     fileName, fileExt = os.path.splitext(file)
     if fileExt != '.xml':
             return {
@@ -36,16 +101,15 @@ def handle (event, context ):
         },
         "body": ""
         }
-        
+    print(file)
     src = str(source_bucket) + '/' + str(file)
-    processedFile =  file + '.processed'
-    print('Processing file : ' + file)
+    processedFile =  os.path.dirname(file) + '/processed/'+ os.path.basename(file)
+
     s3 = boto3.resource('s3')
     s3c = boto3.client('s3')
 
     s3obj = s3c.get_object(Bucket=source_bucket, Key=file)
     object_content = s3obj[u'Body'].read().decode('-1252')
-    print(file)
 
     root = ET.fromstring(object_content)
     for Order in root:
@@ -53,20 +117,60 @@ def handle (event, context ):
         for OrderLine in Order.iter('OrderLine'):
                 for OrderLineItem in OrderLine.iter('OrderLineItem'):
                   StatusCode = OrderLineItem.attrib['StatusCode']
-
-    connection = pymysql.connect(host = hostname,
+                  StatusDesc = OrderLineItem.attrib['StatusDesc']
+                  
+    #print('Src: ' + src)
+    #s3.Object(source_bucket, processedFile).copy_from(CopySource=src)
+    #s3.Object(source_bucket, processedFile).copy_from(CopySource=str(file))
+                
+    #s3.Object(source_bucket, file).delete()
+    #print('File moved: ' + processedFile)                  
+    print('Connecting')
+    
+    try:
+        connection = pymysql.connect(host = hostname,
                              user = dbuser,
                              db = dbname,
-                             password = dbpassword
+                             passwd = dbpassword,
+                             connect_timeout=7
                              )
-                        
+        print('Connected ')
+    except pymysql.MySQLError as e:
+        print("ERROR: Unexpected error: Could not connect to MySQL instance.")
+        print(e)
+        sys.exit()
+    
     try:
         with connection.cursor() as cursor:
-            # Create a new record
-
-            sql = "INSERT INTO `wincanton_log_table` (description,order_id,in_out,call_type)  \
-                     VALUES ('%s','%s','%s','%s')" % (src,ThirdPartyOrderCode,'i',StatusCode)
-
+            
+            
+            if ThirdPartyOrderCode.startswith('C1-'):
+                ThirdPartyOrderCode.find('-')
+                collectionId = ThirdPartyOrderCode.split('-')
+                CollectionIdEnd = collectionId[1]
+                
+                sql = "INSERT INTO `wincanton_log_table` (description,order_id,prefixed_order_id,in_out,call_type)  \
+                    VALUES ('%s','%s','%s','%s','%s')" % (src,ThirdPartyOrderCode,CollectionIdEnd,'i',StatusCode)
+                ThirdPartyOrderCode = Order.attrib['ThirdPartyOrderCode']
+                
+                sql = "UPDATE orders_deliveries SET wincanton_collection_stautus = '%s' WHERE order_id = %s" \
+                         % \
+                    (StatusDesc,CollectionIdEnd)
+            
+            elif ThirdPartyOrderCode.startswith('S-'):
+                ThirdPartyOrderCode.find('-')
+                ToshopID = ThirdPartyOrderCode.split('-')
+                ToshopIdEnd = ToshopID[1]
+                ThirdPartyOrderCode = ToshopIdEnd
+                
+                sql = "INSERT INTO `wincanton_log_table` (description,order_id,prefixed_order_id,in_out,call_type)  \
+                    VALUES ('%s','%s','%s','%s','%s')" % (src,ThirdPartyOrderCode,Order.attrib['ThirdPartyOrderCode'],'i',StatusCode)
+                          
+            else:
+                ThirdPartyOrderCode = Order.attrib['ThirdPartyOrderCode']
+                sql = "INSERT INTO `wincanton_log_table` (description,order_id,in_out,call_type)  \
+                VALUES ('%s','%s','%s','%s')" % (src,ThirdPartyOrderCode,'i',StatusCode)
+ 
             cursor.execute(sql)
             result = cursor.fetchone()
 
@@ -81,13 +185,15 @@ def handle (event, context ):
             object_content = s3obj[u'Body'].read().decode('-1252')
 
             root = ET.fromstring(object_content)
-
+            
             try:
                 log_xml_to_db( connection, file, root )
-                print('Processed file : '+ src + ' to ' + processedFile)
-                s3.Object(source_bucket, processedFile).copy_from(CopySource=src)
-                s3.Object(source_bucket, file).delete()
-
+                print('Src: ' + src)
+                #s3.Object(source_bucket, processedFile).copy_from(CopySource=src)
+                #s3.Object(source_bucket, processedFile).copy_from(CopySource=str(file))
+                
+                #s3.Object(source_bucket, file).delete()
+                #print('File moved: ' + processedFile)
             except Exception as e:
                 print (str(e))
             print(result)
@@ -151,6 +257,10 @@ def log_xml_to_db( connection, fileName, root ):
                         else:
                             if StatusCode == 'COMP-COLS':
                                 StatusDesc = 'Collected'
+                            else:
+                                if StatusCode == 'COMP-ROUT':
+                                    StatusDesc = 'Delivery booked'
+
 
                 try:
                     with connection.cursor() as cursor:
@@ -174,19 +284,26 @@ def log_xml_to_db( connection, fileName, root ):
                     #
                     # update tables based on input file
                     #
-
+                      
                         with connection.cursor() as cursor:
+                            
+                            if ThirdPartyOrderCode.startswith('S-'):
+                                ThirdPartyOrderCode.find('-')
+                                ToshopID = ThirdPartyOrderCode.split('-')
+                                ToshopIdEnd = ToshopID[1]
+                                ThirdPartyOrderCode = ToshopIdEnd
                             sql = "UPDATE sohead SET ordStatusWincanton='%s', ordLastUpdatedWincanton='%s' WHERE id = %s" \
-                                       % \
-                                        (StatusDesc,StatusDate,ThirdPartyOrderCode)
+                                % \
+                                (StatusDesc,StatusDate,ThirdPartyOrderCode)
 
                             cursor.execute(sql)
-                            print(sql)
-                            if DeliveryWindowText.find('-') :
+                            connection.commit()
+                            
+                            if StatusCode == 'COMP-ROUT':
+                                DeliveryWindowText.find('-')
                                 times = DeliveryWindowText.split(' - ')
                                 startTime = times[0]
                                 endTime   = times[1]
-
                                 sql = "SELECT id FROM delslot WHERE sord = '%s' AND deldate = '%s'" % (ThirdPartyOrderCode, VisitDate)
                                 cursor.execute(sql)
                                 connection.commit()
@@ -206,91 +323,43 @@ def log_xml_to_db( connection, fileName, root ):
                             cursor.execute(sql)
                             connection.commit()
 
-                            sql = "SELECT id from delslot WHERE sord = %s " % ThirdPartyOrderCode
-                            print(sql)
+                            sql = "SELECT id from delslot WHERE sord = %s " % ThirdPartyOrderCode 
+                            
                             cursor.execute(sql)
                             connection.commit() 
                             delSlotId = cursor.fetchone()
-                            print(delSlotId)
-
-                            status = 'Delivered'
+                            print (print(delSlotId[0]))
+                            Status = 'Delivered'
                             if StatusCode.startswith('FAIL'):
-                                status = 'Missed Delivery'
-
+                                Status = 'Missed Delivery'
                             sql = "INSERT INTO orders_deliveries_confirmations (order_id, delslot_id, `date`, creator, `rating`, `status`, notes ) \
                                     VALUES (%s, %s, NOW(), 'LAMBDA', 0, '%s', 'WINCANTON XML - delslot')" \
                                     % \
-                                    (ThirdPartyOrderCode, delSlotId, status)
-
+                                    (ThirdPartyOrderCode, delSlotId[0], Status)
+                            print(sql)
+                            cursor.execute(sql)
+                            connection.commit()
+                            Status = 'Delivered'
+                            if StatusCode == 'COMP-DELS':
+                                Status = 'Delivered'
+                                sql = "INSERT INTO orders_deliveries_confirmations (order_id, delslot_id, `date`, creator, `rating`, `status`, notes ) \
+                                    VALUES (%s, %s, NOW(), 'LAMBDA', 0, '%s', 'WINCANTON XML - delslot')" \
+                                    % \
+                                    (ThirdPartyOrderCode,  delSlotId[0], Status)
+                                print(sql)
+                                cursor.execute(sql)
+                                connection.commit() 
+                            
+                                if StatusCode == 'COMP-ORDR':
+                                    sql = "UPDATE wincanton_create_order SET processed='%s',lastupdated='%s%'  WHERE id = %s" \
+                                        % \
+                                        ('Y',NOW,ThirdPartyOrderCode,DeliveryStatus)
+                                        
                             print(sql)
                             cursor.execute(sql)
                             connection.commit() 
-
+                            
+                        
                 except Exception as e:
                     print('cannot write xml to DB [' +str(e) +']')
 
-###############################################################################
-
-def slack_message( message ):
-    try:
-        post = {'text': "{0}".format(message),
-                'channel': SLACK_CHANNEL,
-                'username': SLACK_USER,
-                'icon_emoji': ':robot_face:'
-        }
-
-        req = request.post(SLACK_WEBHOOK_URL,
-                            data=json.dumps(post),
-                            headers={'Content-Type': 'application/json'}
-                            ) 
-
-        print('Response: ' + str(req.text))
-        print('Response code: ' + str(req.status_code))
-    except Exception as e:
-        print('Exception: ' + str(e))
-
-###
-def get_secret(secret_name):
-
-
-    region_name = "eu-west-2"
-
-    # Create a Secrets Manager client
-    session = boto3.session.Session()
-
-    client = session.client( service_name='secretsmanager', region_name=region_name )
-
-    try:
-        get_secret_value_response = client.get_secret_value( SecretId=secret_name )
-
-    except ClientError as e:
-        if e.response['Error']['Code'] == 'DecryptionFailureException':
-            # Secrets Manager can't decrypt the protected secret text using the provided KMS key.
-            # Deal with the exception here, and/or rethrow at your discretion.
-            raise e
-        elif e.response['Error']['Code'] == 'InternalServiceErrorException':
-            # An error occurred on the server side.
-            # Deal with the exception here, and/or rethrow at your discretion.
-            raise e
-        elif e.response['Error']['Code'] == 'InvalidParameterException':
-            # You provided an invalid value for a parameter.
-            # Deal with the exception here, and/or rethrow at your discretion.
-            raise e
-        elif e.response['Error']['Code'] == 'InvalidRequestException':
-            # You provided a parameter value that is not valid for the current state of the resource.
-            # Deal with the exception here, and/or rethrow at your discretion.
-            raise e
-        elif e.response['Error']['Code'] == 'ResourceNotFoundException':
-            # We can't find the resource that you asked for.
-            # Deal with the exception here, and/or rethrow at your discretion.
-            raise e
-    else:
-        # Decrypts secret using the associated KMS CMK.
-        # Depending on whether the secret is a string or binary, one of these fields will be populated.
-        if 'SecretString' in get_secret_value_response:
-            secret = get_secret_value_response['SecretString']
-        else:
-            secret = base64.b64decode(get_secret_value_response['SecretBinary'])
-
-    return json.loads(secret)
-    
